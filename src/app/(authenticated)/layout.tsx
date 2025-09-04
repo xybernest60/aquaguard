@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText, UserCircle } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 type Theme = "light" | "dark";
 
@@ -24,6 +25,8 @@ const menuItems = [
   { href: "/reports", icon: FileText, label: "Reports" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
+
+const HEARTBEAT_OFFLINE_THRESHOLD = 20000; // 20 seconds
 
 export default function AuthenticatedLayout({
   children,
@@ -35,6 +38,8 @@ export default function AuthenticatedLayout({
   const [theme, setTheme] = useState<Theme>("light");
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [lastHeartbeat, setLastHeartbeat] = useState<number | null>(null);
+  const [isOnline, setIsOnline] = useState(false);
 
   useEffect(() => {
     // Check for user session
@@ -52,12 +57,56 @@ export default function AuthenticatedLayout({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
+
+    // Fetch initial heartbeat
+    const fetchInitialHeartbeat = async () => {
+      const { data } = await supabase
+        .from('heartbeat')
+        .select('last_seen')
+        .order('last_seen', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (data) {
+        setLastHeartbeat(new Date(data.last_seen).getTime());
+      }
+    };
+    fetchInitialHeartbeat();
+
+    // Subscribe to heartbeat changes
+    const channel = supabase
+      .channel('heartbeat-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeat' }, (payload) => {
+          if ((payload.new as any)?.last_seen) {
+            setLastHeartbeat(new Date((payload.new as any).last_seen).getTime());
+          }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+
   }, [router]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem("theme", theme);
   }, [theme]);
+  
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (lastHeartbeat) {
+        const timeSinceHeartbeat = Date.now() - lastHeartbeat;
+        setIsOnline(timeSinceHeartbeat < HEARTBEAT_OFFLINE_THRESHOLD);
+      } else {
+        setIsOnline(false);
+      }
+    }, 1000); // Check every second
+
+    return () => clearInterval(interval);
+  }, [lastHeartbeat]);
+
 
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === "light" ? "dark" : "light"));
@@ -113,6 +162,10 @@ export default function AuthenticatedLayout({
           </SheetContent>
         </Sheet>
         <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
+            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                <span>Device {isOnline ? 'Online' : 'Offline'}</span>
+            </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 <span className="sr-only">Toggle Theme</span>
