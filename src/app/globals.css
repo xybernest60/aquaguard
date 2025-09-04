@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes background-pan {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
@@ -84,5 +96,36 @@ body {
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: linear-gradient(
+      -45deg,
+      hsl(var(--primary) / 0.1),
+      hsl(var(--accent) / 0.1),
+      hsl(var(--primary) / 0.1),
+      hsl(var(--accent) / 0.2)
+    );
+    background-size: 400% 400%;
+    animation: background-pan 15s ease-in-out infinite;
+    z-index: -1;
+  }
+
+  .dark body::before {
+    background: linear-gradient(
+      -45deg,
+      hsl(var(--primary) / 0.15),
+      hsl(var(--accent) / 0.15),
+      hsl(var(--primary) / 0.2),
+      hsl(var(--accent) / 0.1)
+    );
+    background-size: 400% 400%;
+    animation: background-pan 15s ease-in-out infinite;
   }
 }

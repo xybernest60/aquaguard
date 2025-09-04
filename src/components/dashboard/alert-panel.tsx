@@ -70,7 +70,7 @@ export function AlertPanel({ data }: AlertPanelProps) {
   const config = alert ? severityConfig[alert.severity] : null;
 
   return (
-    <Card className="h-full">
+    <Card className="h-full bg-card/80 backdrop-blur-sm">
       <CardHeader>
         <CardTitle>Alerts</CardTitle>
       </CardHeader>

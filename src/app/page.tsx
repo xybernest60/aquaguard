@@ -11,9 +11,36 @@ import type { SensorData } from "@/lib/mock-data";
 import { initialSensorData, historicalData as mockHistoricalData } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 
+type Theme = "light" | "dark";
+
 export default function Home() {
   const [data, setData] = useState<SensorData | null>(initialSensorData);
   const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<Theme>("light");
+
+  useEffect(() => {
+    // Set initial theme based on system preference
+    const storedTheme = localStorage.getItem("theme") as Theme | null;
+    if (storedTheme) {
+      setTheme(storedTheme);
+    } else {
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(prefersDark ? "dark" : "light");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(currentTheme => (currentTheme === "light" ? "dark" : "light"));
+  };
 
   useEffect(() => {
     // Simulate fetching data
@@ -23,14 +50,14 @@ export default function Home() {
         tds: 450,
         light: 850,
         motion: false,
-        isNight: false,
+        isNight: theme === 'dark',
         timestamp: Date.now(),
       });
       setLoading(false);
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [theme]);
 
   const getTemperatureStatus = (temp: number) => {
     if (temp < 20 || temp > 30) return "text-destructive";
@@ -46,8 +73,8 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="flex flex-col min-h-screen bg-background font-body">
-        <DashboardHeader />
+      <div className="flex flex-col min-h-screen font-body">
+        <DashboardHeader theme={theme} toggleTheme={toggleTheme} />
         <main className="flex-1 container mx-auto p-4 md:p-8 space-y-8">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Skeleton className="h-[126px]" />
@@ -67,8 +94,8 @@ export default function Home() {
   
   if (!data) {
      return (
-      <div className="flex flex-col min-h-screen bg-background font-body">
-        <DashboardHeader />
+      <div className="flex flex-col min-h-screen font-body">
+        <DashboardHeader theme={theme} toggleTheme={toggleTheme} />
         <main className="flex-1 container mx-auto p-4 md:p-8 space-y-8 text-center">
             <p>Waiting for data...</p>
         </main>
@@ -77,8 +104,8 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background font-body">
-      <DashboardHeader isNight={data?.isNight} />
+    <div className="flex flex-col min-h-screen font-body">
+      <DashboardHeader theme={theme} toggleTheme={toggleTheme} />
       <main className="flex-1 container mx-auto p-4 md:p-8 space-y-8">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <DataCard

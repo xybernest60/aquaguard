@@ -26,7 +26,7 @@ export function ImageGallery() {
   }, []);
 
   return (
-    <Card>
+    <Card className="bg-card/80 backdrop-blur-sm">
       <CardHeader>
         <CardTitle>Recent Security Captures</CardTitle>
       </CardHeader>

@@ -149,7 +149,7 @@ function VisualizationHelper() {
 
 export function HistoricalChart() {
   return (
-    <Card>
+    <Card className="bg-card/80 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Historical Data</CardTitle>
