@@ -19,7 +19,7 @@ export const DataCard: FC<DataCardProps> = ({
   statusColor = "text-foreground",
 }) => {
   return (
-    <Card className="bg-card/80 backdrop-blur-sm">
+    <Card className="bg-card/80 backdrop-blur-sm transition-transform duration-200 hover:scale-105 hover:-rotate-1">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <div className="text-muted-foreground">{icon}</div>
