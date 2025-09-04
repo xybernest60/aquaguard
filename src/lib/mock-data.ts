@@ -14,22 +14,9 @@ export interface SecurityImage {
 
 const now = Date.now();
 
-export const initialSensorData: SensorData = {
-  temperature: 26,
-  tds: 450,
-  light: 850,
-  motion: false,
-  isNight: false,
-  timestamp: now,
-};
+export const initialSensorData: SensorData | null = null;
 
-export const securityImages: SecurityImage[] = [
-  { url: 'https://picsum.photos/600/400?random=1', timestamp: now - 1000 * 60 * 5 },
-  { url: 'https://picsum.photos/600/400?random=2', timestamp: now - 1000 * 60 * 15 },
-  { url: 'https://picsum.photos/600/400?random=3', timestamp: now - 1000 * 60 * 32 },
-  { url: 'https://picsum.photos/600/400?random=4', timestamp: now - 1000 * 60 * 45 },
-  { url: 'https://picsum.photos/600/400?random=5', timestamp: now - 1000 * 60 * 62 },
-];
+export const securityImages: SecurityImage[] = [];
 
 const generateHistoricalData = (numPoints: number) => {
   const data = [];
