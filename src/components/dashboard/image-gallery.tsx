@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { storage } from "@/lib/firebase";
-import { ref as storageRef, listAll, getDownloadURL } from "firebase/storage";
 import type { SecurityImage } from "@/lib/mock-data";
+import { securityImages as mockImages } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,34 +13,16 @@ export function ImageGallery() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchImages = async () => {
+    const fetchImages = () => {
       setIsLoading(true);
-      try {
-        const imagesRef = storageRef(storage, 'security-captures');
-        const result = await listAll(imagesRef);
-        
-        const imageUrls = await Promise.all(
-          result.items.map(async (imageRef) => {
-            const url = await getDownloadURL(imageRef);
-            // Firebase storage metadata doesn't easily provide creation time without another call
-            // For now, we'll use a placeholder timestamp.
-            return { url, timestamp: Date.now() };
-          })
-        );
-        
-        // Sort images by timestamp if available, here we just take the fetched order
-        setImages(imageUrls);
-      } catch (error) {
-        console.error("Error fetching images from Firebase Storage:", error);
-      } finally {
+      // Simulate fetching images
+      setTimeout(() => {
+        setImages(mockImages);
         setIsLoading(false);
-      }
+      }, 1000);
     };
 
     fetchImages();
-    // Optional: refetch images periodically
-    const interval = setInterval(fetchImages, 60000); // every minute
-    return () => clearInterval(interval);
   }, []);
 
   return (
@@ -71,8 +52,7 @@ export function ImageGallery() {
                         data-ai-hint="security camera"
                       />
                       <div className="absolute bottom-0 w-full bg-black/50 p-2 text-xs text-white">
-                        {/* Displaying a generic time as we don't have exact metadata */}
-                        Recent Capture
+                        {new Date(image.timestamp).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -83,7 +63,7 @@ export function ImageGallery() {
             <CarouselNext />
           </Carousel>
         ) : (
-          <p className="text-muted-foreground">No security images found. Your ESP32-CAM can upload images to the 'security-captures' folder in Firebase Storage.</p>
+          <p className="text-muted-foreground">No security images found.</p>
         )}
       </CardContent>
     </Card>

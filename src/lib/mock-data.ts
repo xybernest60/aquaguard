@@ -16,7 +16,14 @@ const now = Date.now();
 
 export const initialSensorData: SensorData | null = null;
 
-export const securityImages: SecurityImage[] = [];
+export const securityImages: SecurityImage[] = [
+    { url: "https://picsum.photos/600/400?random=1", timestamp: now - 1000 * 60 * 5 },
+    { url: "https://picsum.photos/600/400?random=2", timestamp: now - 1000 * 60 * 10 },
+    { url: "https://picsum.photos/600/400?random=3", timestamp: now - 1000 * 60 * 15 },
+    { url: "https://picsum.photos/600/400?random=4", timestamp: now - 1000 * 60 * 20 },
+    { url: "https://picsum.photos/600/400?random=5", timestamp: now - 1000 * 60 * 25 },
+];
+
 
 const generateHistoricalData = (numPoints: number) => {
   const data = [];

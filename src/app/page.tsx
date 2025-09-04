@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { database } from "@/lib/firebase";
-import { ref, onValue } from "firebase/database";
 import { Thermometer, Droplets, Sun, Moon, Move, ShieldCheck } from "lucide-react";
 import { DashboardHeader } from "@/components/dashboard/header";
 import { DataCard } from "@/components/dashboard/data-card";
@@ -10,39 +8,28 @@ import { AlertPanel } from "@/components/dashboard/alert-panel";
 import { HistoricalChart } from "@/components/dashboard/historical-chart";
 import { ImageGallery } from "@/components/dashboard/image-gallery";
 import type { SensorData } from "@/lib/mock-data";
+import { initialSensorData, historicalData as mockHistoricalData } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Home() {
-  const [data, setData] = useState<SensorData | null>(null);
+  const [data, setData] = useState<SensorData | null>(initialSensorData);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const sensorDataRef = ref(database, 'sensorData');
-    
-    const unsubscribe = onValue(sensorDataRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const rawData = snapshot.val();
-        // The ESP32 might send strings, so we ensure types are correct
-        const parsedData: SensorData = {
-          temperature: parseFloat(rawData.temperature) || 0,
-          tds: parseInt(rawData.tds, 10) || 0,
-          light: parseInt(rawData.light, 10) || 0,
-          motion: !!rawData.motion,
-          isNight: (parseInt(rawData.light, 10) || 0) < 400,
-          timestamp: rawData.timestamp || Date.now(),
-        };
-        setData(parsedData);
-      } else {
-        // Handle case where data doesn't exist yet
-        setData(null);
-      }
+    // Simulate fetching data
+    const timer = setTimeout(() => {
+      setData({
+        temperature: 26.5,
+        tds: 450,
+        light: 850,
+        motion: false,
+        isNight: false,
+        timestamp: Date.now(),
+      });
       setLoading(false);
-    }, (error) => {
-      console.error("Firebase read failed: " + error.message);
-      setLoading(false);
-    });
+    }, 1500);
 
-    return () => unsubscribe();
+    return () => clearTimeout(timer);
   }, []);
 
   const getTemperatureStatus = (temp: number) => {
@@ -83,8 +70,7 @@ export default function Home() {
       <div className="flex flex-col min-h-screen bg-background font-body">
         <DashboardHeader />
         <main className="flex-1 container mx-auto p-4 md:p-8 space-y-8 text-center">
-            <p>Waiting for data from your devices...</p>
-            <p>Make sure your ESP32 is sending data to the 'sensorData' path in your Firebase Realtime Database.</p>
+            <p>Waiting for data...</p>
         </main>
       </div>
     );
