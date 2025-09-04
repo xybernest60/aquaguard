@@ -1,20 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  SidebarProvider,
-  Sidebar,
-  SidebarHeader,
-  SidebarContent,
-  SidebarTrigger,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarFooter,
-} from "@/components/ui/sidebar";
-import { Fish, LayoutDashboard, History, Images, Settings, Sun, Moon } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Fish, History, Images, LayoutDashboard, Menu, Moon, Settings, Sun } from "lucide-react";
 
 type Theme = "light" | "dark";
 
@@ -32,6 +23,7 @@ export default function AuthenticatedLayout({
 }) {
   const pathname = usePathname();
   const [theme, setTheme] = useState<Theme>("light");
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     const storedTheme = localStorage.getItem("theme") as Theme | null;
@@ -53,53 +45,57 @@ export default function AuthenticatedLayout({
   };
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen bg-background">
-        <Sidebar>
-          <SidebarHeader>
-             <div className="flex items-center gap-2">
-                <Fish className="w-8 h-8 text-sidebar-primary" />
-                <h1 className="text-xl font-bold text-sidebar-foreground">AquaGuard</h1>
-              </div>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarMenu>
+    <div className="flex min-h-screen w-full flex-col">
+      <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-card/80 backdrop-blur-sm px-4 md:px-6 z-50">
+        <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
+          <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold md:text-base">
+            <Fish className="h-6 w-6 text-primary" />
+            <span className="font-bold">AquaGuard</span>
+          </Link>
+          {menuItems.map((item) => (
+             <Link
+              key={item.href}
+              href={item.href}
+              className={`transition-colors hover:text-foreground ${pathname === item.href ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              {item.label}
+            </Link>
+          ))}
+        </nav>
+        <Sheet open={open} onOpenChange={setOpen}>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="shrink-0 md:hidden">
+              <Menu className="h-5 w-5" />
+              <span className="sr-only">Toggle navigation menu</span>
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left">
+            <nav className="grid gap-6 text-lg font-medium">
+              <Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold" onClick={() => setOpen(false)}>
+                <Fish className="h-6 w-6 text-primary" />
+                 <span className="font-bold">AquaGuard</span>
+              </Link>
               {menuItems.map((item) => (
-                <SidebarMenuItem key={item.href}>
-                  <Link href={item.href} legacyBehavior passHref>
-                    <SidebarMenuButton
-                      isActive={pathname === item.href}
-                      tooltip={item.label}
-                    >
-                      <item.icon />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </Link>
-                </SidebarMenuItem>
+                 <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setOpen(false)}
+                  className={`transition-colors hover:text-foreground ${pathname === item.href ? 'text-foreground' : 'text-muted-foreground'}`}
+                >
+                  {item.label}
+                </Link>
               ))}
-            </SidebarMenu>
-          </SidebarContent>
-          <SidebarFooter>
-             <SidebarMenu>
-                <SidebarMenuItem>
-                    <SidebarMenuButton onClick={toggleTheme} tooltip={theme === 'light' ? 'Night Mode' : 'Light Mode'}>
-                      {theme === 'light' ? <Moon /> : <Sun />}
-                      <span>{theme === 'light' ? 'Night Mode' : 'Light Mode'}</span>
-                    </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-          </SidebarFooter>
-        </Sidebar>
-        <div className="flex-1 flex flex-col">
-          <header className="bg-card/80 backdrop-blur-sm border-b p-2 sticky top-0 z-10 flex items-center justify-between md:justify-end">
-             <div className="md:hidden">
-                <SidebarTrigger />
-             </div>
-             {/* Add a placeholder for title if needed */}
-          </header>
-          {children}
+            </nav>
+          </SheetContent>
+        </Sheet>
+        <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
+            <Button onClick={toggleTheme} variant="ghost" size="icon">
+                {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+                <span className="sr-only">Toggle Theme</span>
+            </Button>
         </div>
-      </div>
-    </SidebarProvider>
+      </header>
+      <main className="flex-1">{children}</main>
+    </div>
   );
 }
