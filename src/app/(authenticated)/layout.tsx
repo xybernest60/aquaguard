@@ -59,8 +59,8 @@ export default function AuthenticatedLayout({
         <Sidebar>
           <SidebarHeader>
             <div className="flex items-center gap-2">
-              <Fish className="w-8 h-8 text-primary" />
-              <h1 className="text-xl font-bold text-foreground">AquaGuard</h1>
+              <Fish className="w-8 h-8 text-sidebar-primary" />
+              <h1 className="text-xl font-bold text-sidebar-foreground">AquaGuard</h1>
             </div>
           </SidebarHeader>
           <SidebarContent>
@@ -99,7 +99,9 @@ export default function AuthenticatedLayout({
             <h1 className="text-lg font-bold text-foreground md:hidden">
               AquaGuard
             </h1>
-            <div/>
+            <div className="hidden md:flex items-center gap-2">
+              <SidebarTrigger />
+            </div>
           </header>
           {children}
         </div>
