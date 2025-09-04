@@ -15,7 +15,6 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Fish, LayoutDashboard, History, Images, Settings, Sun, Moon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 type Theme = "light" | "dark";
 
@@ -55,13 +54,13 @@ export default function AuthenticatedLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen font-body">
+      <div className="flex min-h-screen bg-background">
         <Sidebar>
           <SidebarHeader>
-            <div className="flex items-center gap-2">
-              <Fish className="w-8 h-8 text-sidebar-primary" />
-              <h1 className="text-xl font-bold text-sidebar-foreground">AquaGuard</h1>
-            </div>
+             <div className="flex items-center gap-2">
+                <Fish className="w-8 h-8 text-sidebar-primary" />
+                <h1 className="text-xl font-bold text-sidebar-foreground">AquaGuard</h1>
+              </div>
           </SidebarHeader>
           <SidebarContent>
             <SidebarMenu>
@@ -81,14 +80,14 @@ export default function AuthenticatedLayout({
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={toggleTheme} tooltip={theme === 'light' ? 'Night Mode' : 'Light Mode'}>
-                  {theme === 'light' ? <Moon /> : <Sun />}
-                  <span>{theme === 'light' ? 'Night Mode' : 'Light Mode'}</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
+             <SidebarMenu>
+                <SidebarMenuItem>
+                    <SidebarMenuButton onClick={toggleTheme} tooltip={theme === 'light' ? 'Night Mode' : 'Light Mode'}>
+                      {theme === 'light' ? <Moon /> : <Sun />}
+                      <span>{theme === 'light' ? 'Night Mode' : 'Light Mode'}</span>
+                    </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
           </SidebarFooter>
         </Sidebar>
         <div className="flex-1 flex flex-col">
@@ -96,12 +95,7 @@ export default function AuthenticatedLayout({
              <div className="md:hidden">
                 <SidebarTrigger />
              </div>
-            <h1 className="text-lg font-bold text-foreground md:hidden">
-              AquaGuard
-            </h1>
-            <div className="hidden md:flex items-center gap-2">
-              <SidebarTrigger />
-            </div>
+             {/* Add a placeholder for title if needed */}
           </header>
           {children}
         </div>
