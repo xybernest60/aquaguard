@@ -5,14 +5,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Fish, History, Images, LayoutDashboard, Menu, Moon, Settings, Sun } from "lucide-react";
+import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText } from "lucide-react";
 
 type Theme = "light" | "dark";
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/history", icon: History, label: "History" },
-  { href: "/pictures", icon: Images, label: "Pictures" },
+  { href: "/reports", icon: FileText, label: "Reports" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
