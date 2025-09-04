@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -6,26 +7,33 @@ import { DataCard } from "@/components/dashboard/data-card";
 import { AlertPanel } from "@/components/dashboard/alert-panel";
 import { HistoricalChart } from "@/components/dashboard/historical-chart";
 import { ImageGallery } from "@/components/dashboard/image-gallery";
-import type { SensorData } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
+
+export interface SensorData {
+  temperature: number | null;
+  tds: number | null;
+  light: number | null;
+  motion: boolean;
+  isNight: boolean;
+  timestamp: number | null;
+}
+
 
 export default function DashboardPage() {
   const [data, setData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isNight, setIsNight] = useState(false);
 
   useEffect(() => {
     // Initial theme check
     const isDark = document.documentElement.classList.contains('dark');
-    setIsNight(isDark);
-
-    // Watch for theme changes
+    
+    // Watch for theme changes from layout
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
           const isDarkNow = (mutation.target as HTMLElement).classList.contains('dark');
-          setIsNight(isDarkNow);
+          setData(currentData => currentData ? {...currentData, isNight: isDarkNow } : null);
         }
       });
     });
@@ -34,14 +42,14 @@ export default function DashboardPage() {
     // Fetch initial data
     const fetchInitialData = async () => {
       setLoading(true);
-      const { data: environmentData, error } = await supabase
+      const { data: environmentData } = await supabase
         .from('environment')
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(1)
         .single();
 
-      const { data: securityData, error: securityError } = await supabase
+      const { data: securityData } = await supabase
         .from('security')
         .select('motion_detected, day_night')
         .order('timestamp', { ascending: false })
@@ -58,6 +66,16 @@ export default function DashboardPage() {
           isNight: isNightFromData,
           timestamp: new Date(environmentData.timestamp).getTime(),
         });
+      } else {
+        // No data found, set a default empty state
+        setData({
+          temperature: null,
+          tds: null,
+          light: null,
+          motion: false,
+          isNight: isDark,
+          timestamp: null,
+        });
       }
       setLoading(false);
     };
@@ -70,7 +88,7 @@ export default function DashboardPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
           const newReading = payload.new as any;
           setData(currentData => ({
-              ...(currentData || { temperature:0, tds: 0, light: 0, motion: false, timestamp: 0 }),
+              ...(currentData || { temperature: null, tds: null, light: null, motion: false, timestamp: null, isNight: false }),
               temperature: newReading.temperature,
               tds: newReading.tds,
               light: newReading.light,
@@ -91,7 +109,6 @@ export default function DashboardPage() {
               isNight: isNightFromData,
           }));
           
-          // Also update the app theme if night/day changes
           if (isNightFromData !== document.documentElement.classList.contains('dark')) {
             document.documentElement.classList.toggle("dark", isNightFromData);
           }
@@ -104,15 +121,17 @@ export default function DashboardPage() {
       supabase.removeChannel(securityChannel);
       observer.disconnect();
     };
-  }, [isNight]);
+  }, []);
 
-  const getTemperatureStatus = (temp: number) => {
+  const getTemperatureStatus = (temp: number | null) => {
+    if (temp === null) return "text-muted-foreground";
     if (temp < 20 || temp > 30) return "text-destructive";
     if (temp < 22 || temp > 28) return "text-accent";
     return "text-foreground";
   };
   
-  const getTdsStatus = (tds: number) => {
+  const getTdsStatus = (tds: number | null) => {
+    if (tds === null) return "text-muted-foreground";
     if (tds > 600) return "text-destructive";
     if (tds > 500) return "text-accent";
     return "text-foreground";
@@ -120,63 +139,62 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="p-4 md:p-8 space-y-8">
+      <main className="p-4 md:p-8 space-y-8">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <Skeleton className="h-[126px]" />
             <Skeleton className="h-[126px]" />
             <Skeleton className="h-[126px]" />
             <Skeleton className="h-[126px]" />
           </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            <Skeleton className="md:col-span-2 h-[400px]" />
+          <div className="grid gap-6 lg:grid-cols-3">
+            <Skeleton className="lg:col-span-2 h-[400px]" />
             <Skeleton className="h-[400px]" />
           </div>
           <Skeleton className="h-[300px]" />
-      </div>
+      </main>
     );
   }
   
-  if (!data) {
-     return (
-        <div className="p-4 md:p-8 space-y-8 text-center">
-            <p>Waiting for data from your devices...</p>
-        </div>
-    );
-  }
+  const hasData = data && data.timestamp !== null;
 
   return (
       <main className="p-4 md:p-8 space-y-8">
+        {!hasData && (
+           <div className="text-center text-muted-foreground p-8 border border-dashed rounded-lg">
+                <p>Waiting for first data sync from your devices...</p>
+           </div>
+        )}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <DataCard
             title="Temperature"
             icon={<Thermometer className="h-6 w-6" />}
-            value={data.temperature}
+            value={data?.temperature ?? 'N/A'}
             unit="°C"
             description="Optimal: 22-28°C"
-            statusColor={getTemperatureStatus(data.temperature)}
+            statusColor={getTemperatureStatus(data?.temperature ?? null)}
           />
           <DataCard
             title="TDS"
             icon={<Droplets className="h-6 w-6" />}
-            value={data.tds}
+            value={data?.tds ?? 'N/A'}
             unit="ppm"
             description="Optimal: < 500 ppm"
-            statusColor={getTdsStatus(data.tds)}
+            statusColor={getTdsStatus(data?.tds ?? null)}
           />
           <DataCard
             title="Environment"
-            icon={data.isNight ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
-            value={data.light}
+            icon={data?.isNight ? <Moon className="h-6 w-6" /> : <Sun className="h-6 w-6" />}
+            value={data?.light ?? 'N/A'}
             unit="lux"
-            description={`Currently ${data.isNight ? "Night" : "Day"}`}
+            description={`Currently ${data?.isNight ? "Night" : "Day"}`}
           />
           <DataCard
             title="Security"
-            icon={data.motion ? <Move className="h-6 w-6 text-destructive" /> : <ShieldCheck className="h-6 w-6" />}
-            value={data.motion ? "MOTION" : "Clear"}
+            icon={data?.motion ? <Move className="h-6 w-6 text-destructive" /> : <ShieldCheck className="h-6 w-6" />}
+            value={data?.motion ? "MOTION" : "Clear"}
             unit=""
-            description={data.motion ? "Motion detected!" : "No movement"}
-            statusColor={data.motion ? "text-destructive" : "text-foreground"}
+            description={data?.motion ? "Motion detected!" : "No movement"}
+            statusColor={data?.motion ? "text-destructive" : "text-foreground"}
           />
         </div>
 
@@ -185,7 +203,7 @@ export default function DashboardPage() {
             <HistoricalChart />
           </div>
           <div className="lg:col-span-1">
-            <AlertPanel data={data} />
+            {data && <AlertPanel data={data} />}
           </div>
         </div>
 

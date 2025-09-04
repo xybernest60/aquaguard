@@ -1,3 +1,4 @@
+
 import type { FC, ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -26,7 +27,7 @@ export const DataCard: FC<DataCardProps> = ({
       </CardHeader>
       <CardContent>
         <div className={`text-2xl font-bold ${statusColor}`}>
-          {value} <span className="text-lg font-normal">{unit}</span>
+          {value} {value !== 'N/A' && <span className="text-lg font-normal">{unit}</span>}
         </div>
         {description && (
           <p className="text-xs text-muted-foreground pt-1">{description}</p>

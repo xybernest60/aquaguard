@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
-import type { SensorData } from "@/lib/mock-data";
+import type { SensorData } from "@/app/(authenticated)/dashboard/page";
 import { analyzeAlertSeverity, type AlertSeverityOutput } from "@/ai/flows/alert-severity-analyzer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -34,18 +35,23 @@ export function AlertPanel({ data }: AlertPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    if (!data || data.timestamp === null) {
+      setAlert(null);
+      return;
+    }
+    
     const checkAlerts = async () => {
       // Define alert conditions
-      const tempOutOfRange = data.temperature < 20 || data.temperature > 30;
-      const tdsTooHigh = data.tds > 600;
+      const tempOutOfRange = data.temperature !== null && (data.temperature < 20 || data.temperature > 30);
+      const tdsTooHigh = data.tds !== null && data.tds > 600;
       const intruder = data.motion && data.isNight;
 
       if (tempOutOfRange || tdsTooHigh || intruder) {
         setIsLoading(true);
         try {
           const result = await analyzeAlertSeverity({
-            temperature: data.temperature,
-            tds: data.tds,
+            temperature: data.temperature!,
+            tds: data.tds!,
             motionDetected: data.motion,
             isNight: data.isNight,
           });

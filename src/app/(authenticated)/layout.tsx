@@ -1,11 +1,20 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText, UserCircle } from "lucide-react";
 
 type Theme = "light" | "dark";
 
@@ -22,10 +31,20 @@ export default function AuthenticatedLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [theme, setTheme] = useState<Theme>("light");
   const [open, setOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check for user session
+    const user = localStorage.getItem("user");
+    if (!user) {
+      router.replace("/login");
+    } else {
+       setUserEmail(JSON.parse(user).email);
+    }
+
     const storedTheme = localStorage.getItem("theme") as Theme | null;
     if (storedTheme) {
       setTheme(storedTheme);
@@ -33,7 +52,7 @@ export default function AuthenticatedLayout({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -42,6 +61,11 @@ export default function AuthenticatedLayout({
 
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === "light" ? "dark" : "light"));
+  };
+  
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    router.replace("/login");
   };
 
   return (
@@ -93,6 +117,21 @@ export default function AuthenticatedLayout({
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 <span className="sr-only">Toggle Theme</span>
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="rounded-full">
+                  <UserCircle className="h-5 w-5" />
+                  <span className="sr-only">Toggle user menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>{userEmail || "My Account"}</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
         </div>
       </header>
       <main className="flex-1">{children}</main>

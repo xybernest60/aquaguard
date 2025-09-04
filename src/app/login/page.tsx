@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,14 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  
+  useEffect(() => {
+    // If user is already logged in, redirect to dashboard
+    if (localStorage.getItem('user')) {
+      router.replace('/dashboard');
+    }
+  }, [router]);
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +49,6 @@ export default function LoginPage() {
           title: 'Login Successful',
           description: 'Welcome to AquaGuard!',
         });
-        // Store a session token or user information in local storage if needed
         localStorage.setItem('user', JSON.stringify({ email: data.email }));
         router.replace('/dashboard');
       } else {
@@ -98,7 +106,7 @@ export default function LoginPage() {
           </form>
         </CardContent>
          <CardFooter className="text-center text-xs text-muted-foreground justify-center">
-            <p>Use the credentials from your database.</p>
+            <p>Use 'admin@aquaguard.com' and 'securepassword123' to login.</p>
         </CardFooter>
       </Card>
     </div>

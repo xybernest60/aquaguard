@@ -1,11 +1,5 @@
-export interface SensorData {
-  temperature: number;
-  tds: number;
-  light: number;
-  motion: boolean;
-  isNight: boolean;
-  timestamp: number;
-}
+
+import type { SensorData } from "@/app/(authenticated)/dashboard/page";
 
 export interface SecurityImage {
   url: string;
