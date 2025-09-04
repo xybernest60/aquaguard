@@ -7,18 +7,20 @@ import { AlertPanel } from "@/components/dashboard/alert-panel";
 import { HistoricalChart } from "@/components/dashboard/historical-chart";
 import { ImageGallery } from "@/components/dashboard/image-gallery";
 import type { SensorData } from "@/lib/mock-data";
-import { initialSensorData } from "@/lib/mock-data";
 import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
-  const [data, setData] = useState<SensorData | null>(initialSensorData);
+  const [data, setData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isNight, setIsNight] = useState(false);
 
   useEffect(() => {
+    // Initial theme check
     const isDark = document.documentElement.classList.contains('dark');
     setIsNight(isDark);
 
+    // Watch for theme changes
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
@@ -27,31 +29,81 @@ export default function DashboardPage() {
         }
       });
     });
-
     observer.observe(document.documentElement, { attributes: true });
 
-    const timer = setTimeout(() => {
-      setData({
-        temperature: 26.5,
-        tds: 450,
-        light: 850,
-        motion: false,
-        isNight: isDark,
-        timestamp: Date.now(),
-      });
+    // Fetch initial data
+    const fetchInitialData = async () => {
+      setLoading(true);
+      const { data: environmentData, error } = await supabase
+        .from('environment')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+
+      const { data: securityData, error: securityError } = await supabase
+        .from('security')
+        .select('motion_detected, day_night')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (environmentData) {
+        const isNightFromData = securityData ? securityData.day_night === 'night' : isDark;
+        setData({
+          temperature: environmentData.temperature || 0,
+          tds: environmentData.tds || 0,
+          light: environmentData.light || 0,
+          motion: securityData ? securityData.motion_detected : false,
+          isNight: isNightFromData,
+          timestamp: new Date(environmentData.timestamp).getTime(),
+        });
+      }
       setLoading(false);
-    }, 1500);
+    };
+
+    fetchInitialData();
+
+    // Subscribe to real-time updates
+    const environmentChannel = supabase
+      .channel('environment-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
+          const newReading = payload.new as any;
+          setData(currentData => ({
+              ...(currentData || { temperature:0, tds: 0, light: 0, motion: false, timestamp: 0 }),
+              temperature: newReading.temperature,
+              tds: newReading.tds,
+              light: newReading.light,
+              timestamp: new Date(newReading.timestamp).getTime(),
+              isNight: currentData?.isNight ?? isDark,
+          }));
+      })
+      .subscribe();
+      
+    const securityChannel = supabase
+      .channel('security-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
+          const newEvent = payload.new as any;
+          const isNightFromData = newEvent.day_night === 'night';
+          setData(currentData => ({
+              ...(currentData!),
+              motion: newEvent.motion_detected,
+              isNight: isNightFromData,
+          }));
+          
+          // Also update the app theme if night/day changes
+          if (isNightFromData !== document.documentElement.classList.contains('dark')) {
+            document.documentElement.classList.toggle("dark", isNightFromData);
+          }
+      })
+      .subscribe();
+
 
     return () => {
-      clearTimeout(timer);
+      supabase.removeChannel(environmentChannel);
+      supabase.removeChannel(securityChannel);
       observer.disconnect();
     };
-  }, []);
-
-  useEffect(() => {
-    if (data) {
-        setData(currentData => ({...currentData!, isNight: isNight}));
-    }
   }, [isNight]);
 
   const getTemperatureStatus = (temp: number) => {
@@ -87,7 +139,7 @@ export default function DashboardPage() {
   if (!data) {
      return (
         <div className="p-4 md:p-8 space-y-8 text-center">
-            <p>Waiting for data...</p>
+            <p>Waiting for data from your devices...</p>
         </div>
     );
   }

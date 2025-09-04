@@ -3,26 +3,54 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import type { SecurityImage } from "@/lib/mock-data";
-import { securityImages as mockImages } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
+import { supabase } from "@/lib/supabase";
 
 export function ImageGallery() {
   const [images, setImages] = useState<SecurityImage[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchImages = () => {
+    const fetchImages = async () => {
       setIsLoading(true);
-      // Simulate fetching images
-      setTimeout(() => {
-        setImages(mockImages);
-        setIsLoading(false);
-      }, 1000);
+      const { data, error } = await supabase
+        .from('security')
+        .select('capture_url, timestamp')
+        .not('capture_url', 'is', null)
+        .order('timestamp', { ascending: false })
+        .limit(10);
+
+      if (data) {
+        const formattedImages: SecurityImage[] = data.map(item => ({
+          url: item.capture_url!,
+          timestamp: new Date(item.timestamp).getTime(),
+        }));
+        setImages(formattedImages);
+      }
+      setIsLoading(false);
     };
 
     fetchImages();
+
+    const channel = supabase
+      .channel('security-image-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
+        if(payload.new.capture_url) {
+            const newImage: SecurityImage = {
+                url: payload.new.capture_url,
+                timestamp: new Date(payload.new.timestamp).getTime()
+            };
+            setImages(currentImages => [newImage, ...currentImages]);
+        }
+      })
+      .subscribe();
+
+    return () => {
+        supabase.removeChannel(channel);
+    }
+
   }, []);
 
   return (
@@ -38,7 +66,7 @@ export function ImageGallery() {
              <Skeleton className="h-32 w-1/3" />
           </div>
         ) : images.length > 0 ? (
-          <Carousel opts={{ align: "start", loop: true }}>
+          <Carousel opts={{ align: "start", loop: images.length > 1 }}>
             <CarouselContent>
               {images.map((image, index) => (
                 <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3">

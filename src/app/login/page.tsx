@@ -8,27 +8,52 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Fish } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email === 'example@gamil.com' && password === '123') {
-      toast({
-        title: 'Login Successful',
-        description: 'Welcome to AquaGuard!',
-      });
-      router.replace('/dashboard');
-    } else {
+    setIsLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, password_hash')
+        .eq('email', email)
+        .single();
+
+      if (error || !data) {
+        throw new Error('Invalid email or password.');
+      }
+      
+      // IMPORTANT: This is an insecure password check for demonstration purposes.
+      // In a real application, use a secure authentication provider like Supabase Auth,
+      // which handles password hashing and verification securely.
+      if (password === data.password_hash) {
+        toast({
+          title: 'Login Successful',
+          description: 'Welcome to AquaGuard!',
+        });
+        // Store a session token or user information in local storage if needed
+        localStorage.setItem('user', JSON.stringify({ email: data.email }));
+        router.replace('/dashboard');
+      } else {
+        throw new Error('Invalid email or password.');
+      }
+    } catch (err: any) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: 'Invalid email or password.',
+        description: err.message,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -53,6 +78,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
             <div className="space-y-2">
@@ -63,15 +89,16 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                disabled={isLoading}
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Logging in...' : 'Login'}
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="text-center text-xs text-muted-foreground">
-          <p>Use example@gamil.com and password: 123</p>
+         <CardFooter className="text-center text-xs text-muted-foreground justify-center">
+            <p>Use the credentials from your database.</p>
         </CardFooter>
       </Card>
     </div>

@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { historicalData } from "@/lib/mock-data";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -15,6 +14,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { visualizeHistoricalData, type VisualizeHistoricalDataOutput } from "@/ai/flows/historical-data-visualizer";
 import { Bot } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const chartConfig = {
   temperature: { label: "Temperature (°C)", color: "hsl(var(--chart-1))" },
@@ -28,7 +28,7 @@ const formSchema = z.object({
   goal: z.string().min(1, "Please select a goal."),
 });
 
-function VisualizationHelper() {
+function VisualizationHelper({ dataPoints }: { dataPoints: number }) {
   const [suggestion, setSuggestion] = useState<VisualizeHistoricalDataOutput | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -43,7 +43,7 @@ function VisualizationHelper() {
     try {
       const result = await visualizeHistoricalData({
         ...values,
-        dataPoints: historicalData.length,
+        dataPoints,
       });
       setSuggestion(result);
     } catch (error) {
@@ -148,14 +148,55 @@ function VisualizationHelper() {
 }
 
 export function HistoricalChart() {
+    const [historicalData, setHistoricalData] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchHistoricalData = async () => {
+            const { data, error } = await supabase
+                .from('environment')
+                .select('timestamp, temperature, tds, light')
+                .order('timestamp', { ascending: false })
+                .limit(50); // Fetch last 50 data points
+
+            if (data) {
+                const formattedData = data.map(item => ({
+                    time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    temperature: item.temperature,
+                    tds: item.tds,
+                    light: item.light,
+                })).reverse(); // reverse to show oldest first
+                setHistoricalData(formattedData);
+            }
+        };
+
+        fetchHistoricalData();
+
+        const channel = supabase
+            .channel('historical-environment-changes')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
+                const newItem = {
+                    time: new Date(payload.new.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    temperature: payload.new.temperature,
+                    tds: payload.new.tds,
+                    light: payload.new.light,
+                };
+                setHistoricalData(currentData => [...currentData.slice(-49), newItem]);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        }
+    }, []);
+
   return (
     <Card className="bg-card/80 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>Historical Data</CardTitle>
-          <CardDescription>Last 12 hours of sensor readings</CardDescription>
+          <CardDescription>Last 50 data points</CardDescription>
         </div>
-        <VisualizationHelper />
+        <VisualizationHelper dataPoints={historicalData.length} />
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="temperature">
