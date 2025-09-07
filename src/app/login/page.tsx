@@ -101,12 +101,12 @@ export default function LoginPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Logging in...' : 'Login'}
+              {isLoading ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
         </CardContent>
          <CardFooter className="text-center text-xs text-muted-foreground justify-center">
-            <p>Use 'admin@aquaguard.com' and 'securepassword123' to login.</p>
+            <p>Please log in to continue.</p>
         </CardFooter>
       </Card>
     </div>
