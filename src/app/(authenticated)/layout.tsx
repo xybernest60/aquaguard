@@ -14,16 +14,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText, UserCircle, Camera, Cpu } from "lucide-react";
+import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle, Camera, Cpu } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Theme = "light" | "dark";
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/history", icon: History, label: "History" },
   { href: "/reports", icon: FileText, label: "Reports" },
-  { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 const HEARTBEAT_OFFLINE_THRESHOLD = 20000; // 20 seconds
@@ -207,8 +205,6 @@ export default function AuthenticatedLayout({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{userEmail || "My Account"}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/settings')}>Settings</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
               </DropdownMenuContent>
