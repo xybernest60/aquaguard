@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -7,6 +8,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/lib/supabase";
+
+// A simple function to check if a URL is valid and from Supabase
+const isValidSupabaseUrl = (url: string | null): url is string => {
+    if (!url) return false;
+    try {
+        const parsedUrl = new URL(url);
+        return parsedUrl.protocol === 'https:' && parsedUrl.hostname.endsWith('supabase.co');
+    } catch (e) {
+        return false;
+    }
+};
+
 
 export function ImageGallery() {
   const [images, setImages] = useState<SecurityImage[]>([]);
@@ -23,10 +36,12 @@ export function ImageGallery() {
         .limit(10);
 
       if (data) {
-        const formattedImages: SecurityImage[] = data.map(item => ({
-          url: item.capture_url!,
-          timestamp: new Date(item.timestamp).getTime(),
-        }));
+        const formattedImages: SecurityImage[] = data
+            .filter(item => isValidSupabaseUrl(item.capture_url))
+            .map(item => ({
+                url: item.capture_url!,
+                timestamp: new Date(item.timestamp).getTime(),
+            }));
         setImages(formattedImages);
       }
       setIsLoading(false);
@@ -37,9 +52,9 @@ export function ImageGallery() {
     const channel = supabase
       .channel('security-image-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
-        if(payload.new.capture_url) {
+        if(isValidSupabaseUrl(payload.new.capture_url)) {
             const newImage: SecurityImage = {
-                url: payload.new.capture_url,
+                url: payload.new.capture_url!,
                 timestamp: new Date(payload.new.timestamp).getTime()
             };
             setImages(currentImages => [newImage, ...currentImages]);

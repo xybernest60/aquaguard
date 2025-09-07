@@ -26,6 +26,17 @@ interface Log {
   details: any;
 }
 
+// A simple function to check if a URL is valid and from Supabase
+const isValidSupabaseUrl = (url: string | null): url is string => {
+    if (!url) return false;
+    try {
+        const parsedUrl = new URL(url);
+        return parsedUrl.protocol === 'https:' && parsedUrl.hostname.endsWith('supabase.co');
+    } catch (e) {
+        return false;
+    }
+};
+
 const actionIcons: { [key: string]: React.ReactElement } = {
   "motion_detected": <Shield className="h-4 w-4" />,
   "day_mode": <Lightbulb className="h-4 w-4" />,
@@ -72,7 +83,12 @@ export default function ReportsPage() {
       ]);
 
       if (securityRes.data) {
-        setSecurityEvents(securityRes.data);
+        // Filter out events with invalid capture URLs before setting state
+        const validSecurityEvents = securityRes.data.map(event => ({
+          ...event,
+          capture_url: isValidSupabaseUrl(event.capture_url) ? event.capture_url : null
+        }));
+        setSecurityEvents(validSecurityEvents);
       }
       if (logsRes.data) {
         setLogs(logsRes.data);
@@ -87,7 +103,11 @@ export default function ReportsPage() {
     const channel = supabase
       .channel('reports-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
-        setSecurityEvents(currentEvents => [payload.new as SecurityEvent, ...currentEvents]);
+        const newEvent = payload.new as SecurityEvent;
+        // Ensure the URL is valid before adding it
+        if (isValidSupabaseUrl(newEvent.capture_url) || newEvent.motion_detected) {
+            setSecurityEvents(currentEvents => [newEvent, ...currentEvents]);
+        }
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'logs' }, (payload) => {
         setLogs(currentLogs => [payload.new as Log, ...currentLogs]);
@@ -139,7 +159,7 @@ export default function ReportsPage() {
                           <Badge variant="outline" className="capitalize">{event.day_night}</Badge>
                         </TableCell>
                         <TableCell>
-                          {event.capture_url ? (
+                          {event.capture_url && isValidSupabaseUrl(event.capture_url) ? (
                             <Dialog>
                               <DialogTrigger asChild>
                                 <button className="text-primary hover:underline flex items-center gap-1">
@@ -209,5 +229,3 @@ export default function ReportsPage() {
     </main>
   );
 }
-
-    
