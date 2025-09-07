@@ -3,13 +3,19 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import { format } from "date-fns";
+import { DateRange } from "react-day-picker";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/lib/supabase";
-import { FileText, ImageIcon, Shield, Thermometer, Droplets, Sun } from "lucide-react";
+import { FileText, ImageIcon, Shield, Thermometer, Droplets, Sun, Calendar as CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SecurityEvent {
   id: number;
@@ -27,51 +33,95 @@ interface EnvironmentReading {
   light: number | null;
 }
 
-// A simple function to check if a URL is valid and from Supabase
 const isValidSupabaseUrl = (url: string | null): url is string => {
     if (!url) return false;
     try {
         const parsedUrl = new URL(url);
-        return parsedUrl.protocol === 'https:' && parsedUrl.hostname.endsWith('supabase.co');
+        return parsedUrl.hostname.endsWith('supabase.co');
     } catch (e) {
         return false;
     }
 };
 
+function DateRangePicker({
+  className,
+  date,
+  setDate,
+}: {
+  className?: string;
+  date: DateRange | undefined;
+  setDate: (date: DateRange | undefined) => void;
+}) {
+  return (
+    <div className={cn("grid gap-2", className)}>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            id="date"
+            variant={"outline"}
+            className={cn(
+              "w-[300px] justify-start text-left font-normal",
+              !date && "text-muted-foreground"
+            )}
+          >
+            <CalendarIcon className="mr-2 h-4 w-4" />
+            {date?.from ? (
+              date.to ? (
+                <>
+                  {format(date.from, "LLL dd, y")} -{" "}
+                  {format(date.to, "LLL dd, y")}
+                </>
+              ) : (
+                format(date.from, "LLL dd, y")
+              )
+            ) : (
+              <span>Pick a date range</span>
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            initialFocus
+            mode="range"
+            defaultMonth={date?.from}
+            selected={date}
+            onSelect={setDate}
+            numberOfMonths={2}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+
 export default function ReportsPage() {
   const [securityEvents, setSecurityEvents] = useState<SecurityEvent[]>([]);
   const [environmentHistory, setEnvironmentHistory] = useState<EnvironmentReading[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
 
   useEffect(() => {
-    const fetchAllData = async () => {
-      setLoading(true);
-      
-      const [securityRes, environmentRes] = await Promise.all([
-        supabase
-          .from('security')
-          .select('*')
-          .or('motion_detected.eq.true,capture_url.not.is.null')
-          .order('timestamp', { ascending: false })
-          .limit(100),
-        supabase
-          .from('environment')
-          .select('*')
-          .order('timestamp', { ascending: false })
-          .limit(100)
-      ]);
+    const fetchSecurityData = async () => {
+      const { data } = await supabase
+        .from('security')
+        .select('*')
+        .or('motion_detected.eq.true,capture_url.not.is.null')
+        .order('timestamp', { ascending: false })
+        .limit(100);
 
-      if (securityRes.data) {
-        const validSecurityEvents = securityRes.data.map(event => ({
+      if (data) {
+        const validSecurityEvents = data.map(event => ({
           ...event,
           capture_url: isValidSupabaseUrl(event.capture_url) ? event.capture_url : null
         }));
         setSecurityEvents(validSecurityEvents);
       }
-      if (environmentRes.data) {
-        setEnvironmentHistory(environmentRes.data);
-      }
-      
+    };
+
+    const fetchAllData = async () => {
+      setLoading(true);
+      await Promise.all([fetchSecurityData(), fetchEnvironmentData()]);
       setLoading(false);
     };
 
@@ -86,19 +136,55 @@ export default function ReportsPage() {
         }
       })
       .subscribe();
-      
-    const environmentChannel = supabase
-      .channel('environment-reports-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
-        setEnvironmentHistory(currentHistory => [payload.new as EnvironmentReading, ...currentHistory]);
-      })
-      .subscribe();
 
     return () => {
       supabase.removeChannel(securityChannel);
-      supabase.removeChannel(environmentChannel);
     };
   }, []);
+
+  const fetchEnvironmentData = async () => {
+      setLoading(true);
+      let query = supabase
+        .from('environment')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(2000);
+      
+      if (dateRange?.from) {
+        query = query.gte('timestamp', dateRange.from.toISOString());
+      }
+      if (dateRange?.to) {
+        // Add a day to the end date to include the whole day
+        const toDate = new Date(dateRange.to);
+        toDate.setDate(toDate.getDate() + 1);
+        query = query.lte('timestamp', toDate.toISOString());
+      }
+
+      const { data } = await query;
+
+      if (data) {
+        setEnvironmentHistory(data);
+      }
+      setLoading(false);
+    };
+    
+  useEffect(() => {
+    fetchEnvironmentData();
+
+    const environmentChannel = supabase
+      .channel('environment-reports-changes')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
+        // Re-fetch or append based on date range
+         fetchEnvironmentData();
+      })
+      .subscribe();
+      
+      return () => {
+          supabase.removeChannel(environmentChannel);
+      }
+
+  }, [dateRange]);
+
 
   return (
     <main className="p-4 md:p-8">
@@ -124,7 +210,7 @@ export default function ReportsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? (
+                  {loading && securityEvents.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={4} className="h-24 text-center">Loading security events...</TableCell>
                     </TableRow>
@@ -164,6 +250,9 @@ export default function ReportsPage() {
               </Table>
             </TabsContent>
             <TabsContent value="history">
+             <div className="flex items-center py-4">
+                <DateRangePicker date={dateRange} setDate={setDateRange} />
+             </div>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -204,7 +293,7 @@ export default function ReportsPage() {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={4} className="h-24 text-center">No environment readings found.</TableCell>
+                      <TableCell colSpan={4} className="h-24 text-center">No environment readings found for the selected period.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
