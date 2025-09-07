@@ -39,7 +39,7 @@ export default function DashboardPage() {
     });
     observer.observe(document.documentElement, { attributes: true });
 
-    // Fetch initial data
+    // Fetch initial data - always get the latest record
     const fetchInitialData = async () => {
       setLoading(true);
       const isDark = document.documentElement.classList.contains('dark');
@@ -78,9 +78,9 @@ export default function DashboardPage() {
 
     fetchInitialData();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time insertions
     const environmentChannel = supabase
-      .channel('environment-changes')
+      .channel('environment-inserts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
           const newReading = payload.new as any;
           setData(currentData => ({
@@ -94,7 +94,7 @@ export default function DashboardPage() {
       .subscribe();
       
     const securityChannel = supabase
-      .channel('security-changes')
+      .channel('security-inserts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
           const newEvent = payload.new as any;
           const isNightFromData = newEvent.day_night === 'night';
