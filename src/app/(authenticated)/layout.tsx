@@ -24,7 +24,7 @@ const menuItems = [
   { href: "/reports", icon: FileText, label: "Reports" },
 ];
 
-const HEARTBEAT_OFFLINE_THRESHOLD = 20000; // 20 seconds
+const HEARTBEAT_OFFLINE_THRESHOLD = 5000; // 5 seconds
 
 interface DeviceStatus {
     isOnline: boolean;
@@ -185,11 +185,15 @@ export default function AuthenticatedLayout({
             <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground">
                 <div className="flex items-center gap-1.5">
                     <Cpu className={`h-4 w-4 ${mainDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
-                    <span className={`${mainDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>Main</span>
+                    <span className={`${mainDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>
+                      System {mainDeviceStatus.isOnline ? 'on' : 'off'}
+                    </span>
                 </div>
                  <div className="flex items-center gap-1.5">
                     <Camera className={`h-4 w-4 ${cameraDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
-                    <span className={`${cameraDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>Camera</span>
+                     <span className={`${cameraDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>
+                      Camera {cameraDeviceStatus.isOnline ? 'on' : 'off'}
+                    </span>
                 </div>
             </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
