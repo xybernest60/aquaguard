@@ -78,7 +78,7 @@ export default function DashboardPage() {
 
     fetchInitialData();
 
-    // Subscribe to real-time insertions
+    // Subscribe to real-time insertions for new data points
     const environmentChannel = supabase
       .channel('environment-inserts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
