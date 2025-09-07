@@ -25,15 +25,15 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Initial theme check
-    const isDark = document.documentElement.classList.contains('dark');
-    
     // Watch for theme changes from layout
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.attributeName === 'class') {
           const isDarkNow = (mutation.target as HTMLElement).classList.contains('dark');
-          setData(currentData => currentData ? {...currentData, isNight: isDarkNow } : null);
+          setData(currentData => {
+            if (!currentData) return null;
+            return {...currentData, isNight: isDarkNow };
+          });
         }
       });
     });
@@ -42,6 +42,8 @@ export default function DashboardPage() {
     // Fetch initial data
     const fetchInitialData = async () => {
       setLoading(true);
+      const isDark = document.documentElement.classList.contains('dark');
+
       const { data: environmentData } = await supabase
         .from('environment')
         .select('*')
@@ -56,27 +58,21 @@ export default function DashboardPage() {
         .limit(1)
         .single();
       
-      if (environmentData) {
-        const isNightFromData = securityData ? securityData.day_night === 'night' : isDark;
-        setData({
-          temperature: environmentData.temperature || 0,
-          tds: environmentData.tds || 0,
-          light: environmentData.light || 0,
-          motion: securityData ? securityData.motion_detected : false,
-          isNight: isNightFromData,
-          timestamp: new Date(environmentData.timestamp).getTime(),
-        });
-      } else {
-        // No data found, set a default empty state
-        setData({
-          temperature: null,
-          tds: null,
-          light: null,
-          motion: false,
-          isNight: isDark,
-          timestamp: null,
-        });
+      const initialIsNight = securityData ? securityData.day_night === 'night' : isDark;
+
+      setData({
+        temperature: environmentData?.temperature ?? null,
+        tds: environmentData?.tds ?? null,
+        light: environmentData?.light ?? null,
+        motion: securityData?.motion_detected ?? false,
+        isNight: initialIsNight,
+        timestamp: environmentData ? new Date(environmentData.timestamp).getTime() : null,
+      });
+
+      if (initialIsNight !== isDark) {
+          document.documentElement.classList.toggle("dark", initialIsNight);
       }
+      
       setLoading(false);
     };
 
@@ -88,12 +84,11 @@ export default function DashboardPage() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
           const newReading = payload.new as any;
           setData(currentData => ({
-              ...(currentData || { temperature: null, tds: null, light: null, motion: false, timestamp: null, isNight: false }),
+              ...(currentData!),
               temperature: newReading.temperature,
               tds: newReading.tds,
               light: newReading.light,
               timestamp: new Date(newReading.timestamp).getTime(),
-              isNight: currentData?.isNight ?? isDark,
           }));
       })
       .subscribe();
