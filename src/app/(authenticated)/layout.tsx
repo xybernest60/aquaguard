@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText, UserCircle } from "lucide-react";
+import { Fish, History, LayoutDashboard, Menu, Moon, Settings, Sun, FileText, UserCircle, Camera, Cpu } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Theme = "light" | "dark";
@@ -28,6 +28,11 @@ const menuItems = [
 
 const HEARTBEAT_OFFLINE_THRESHOLD = 20000; // 20 seconds
 
+interface DeviceStatus {
+    isOnline: boolean;
+    lastSeen: number | null;
+}
+
 export default function AuthenticatedLayout({
   children,
 }: {
@@ -38,8 +43,10 @@ export default function AuthenticatedLayout({
   const [theme, setTheme] = useState<Theme>("light");
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [lastHeartbeat, setLastHeartbeat] = useState<number | null>(null);
-  const [isOnline, setIsOnline] = useState(false);
+
+  const [mainDeviceStatus, setMainDeviceStatus] = useState<DeviceStatus>({ isOnline: false, lastSeen: null });
+  const [cameraDeviceStatus, setCameraDeviceStatus] = useState<DeviceStatus>({ isOnline: false, lastSeen: null });
+
 
   useEffect(() => {
     // Check for user session
@@ -58,27 +65,35 @@ export default function AuthenticatedLayout({
       setTheme(prefersDark ? "dark" : "light");
     }
 
-    // Fetch initial heartbeat
-    const fetchInitialHeartbeat = async () => {
-      const { data } = await supabase
-        .from('heartbeat')
-        .select('last_seen')
-        .order('last_seen', { ascending: false })
-        .limit(1)
-        .single();
-      
+    // Fetch initial heartbeats
+    const fetchInitialHeartbeats = async () => {
+      const { data } = await supabase.from('heartbeat').select('*');
       if (data) {
-        setLastHeartbeat(new Date(data.last_seen).getTime());
+        const main = data.find(d => d.device_id === 'aquaguard_main');
+        const camera = data.find(d => d.device_id === 'aquaguard_camera');
+        if (main) {
+          setMainDeviceStatus(prev => ({...prev, lastSeen: new Date(main.last_seen).getTime()}));
+        }
+        if (camera) {
+          setCameraDeviceStatus(prev => ({...prev, lastSeen: new Date(camera.last_seen).getTime()}));
+        }
       }
     };
-    fetchInitialHeartbeat();
+    fetchInitialHeartbeats();
 
     // Subscribe to heartbeat changes
     const channel = supabase
       .channel('heartbeat-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeat' }, (payload) => {
-          if ((payload.new as any)?.last_seen) {
-            setLastHeartbeat(new Date((payload.new as any).last_seen).getTime());
+          const deviceId = (payload.new as any)?.device_id;
+          const lastSeen = (payload.new as any)?.last_seen;
+          if (deviceId && lastSeen) {
+            const lastSeenTime = new Date(lastSeen).getTime();
+            if (deviceId === 'aquaguard_main') {
+              setMainDeviceStatus(prev => ({ ...prev, lastSeen: lastSeenTime }));
+            } else if (deviceId === 'aquaguard_camera') {
+              setCameraDeviceStatus(prev => ({...prev, lastSeen: lastSeenTime}));
+            }
           }
       })
       .subscribe();
@@ -96,16 +111,23 @@ export default function AuthenticatedLayout({
   
   useEffect(() => {
     const interval = setInterval(() => {
-      if (lastHeartbeat) {
-        const timeSinceHeartbeat = Date.now() - lastHeartbeat;
-        setIsOnline(timeSinceHeartbeat < HEARTBEAT_OFFLINE_THRESHOLD);
+      if (mainDeviceStatus.lastSeen) {
+        const timeSince = Date.now() - mainDeviceStatus.lastSeen;
+        setMainDeviceStatus(prev => ({ ...prev, isOnline: timeSince < HEARTBEAT_OFFLINE_THRESHOLD }));
       } else {
-        setIsOnline(false);
+        setMainDeviceStatus(prev => ({ ...prev, isOnline: false }));
+      }
+
+      if (cameraDeviceStatus.lastSeen) {
+        const timeSince = Date.now() - cameraDeviceStatus.lastSeen;
+        setCameraDeviceStatus(prev => ({ ...prev, isOnline: timeSince < HEARTBEAT_OFFLINE_THRESHOLD }));
+      } else {
+         setCameraDeviceStatus(prev => ({ ...prev, isOnline: false }));
       }
     }, 1000); // Check every second
 
     return () => clearInterval(interval);
-  }, [lastHeartbeat]);
+  }, [mainDeviceStatus.lastSeen, cameraDeviceStatus.lastSeen]);
 
 
   const toggleTheme = () => {
@@ -161,10 +183,16 @@ export default function AuthenticatedLayout({
             </nav>
           </SheetContent>
         </Sheet>
-        <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                <div className={`h-2.5 w-2.5 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-                <span>Device {isOnline ? 'Online' : 'Offline'}</span>
+        <div className="flex w-full items-center justify-end gap-2 md:ml-auto md:gap-2 lg:gap-4">
+            <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground">
+                <div className="flex items-center gap-1.5">
+                    <Cpu className={`h-4 w-4 ${mainDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
+                    <span className={`${mainDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>Main</span>
+                </div>
+                 <div className="flex items-center gap-1.5">
+                    <Camera className={`h-4 w-4 ${cameraDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
+                    <span className={`${cameraDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>Camera</span>
+                </div>
             </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
