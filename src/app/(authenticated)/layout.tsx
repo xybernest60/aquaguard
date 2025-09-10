@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle, Camera, Cpu } from "lucide-react";
+import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
 type Theme = "light" | "dark";
@@ -23,13 +23,6 @@ const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/reports", icon: FileText, label: "Reports" },
 ];
-
-const HEARTBEAT_OFFLINE_THRESHOLD = 5000; // 5 seconds
-
-interface DeviceStatus {
-    isOnline: boolean;
-    lastSeen: number | null;
-}
 
 export default function AuthenticatedLayout({
   children,
@@ -41,10 +34,6 @@ export default function AuthenticatedLayout({
   const [theme, setTheme] = useState<Theme>("light");
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  const [mainDeviceStatus, setMainDeviceStatus] = useState<DeviceStatus>({ isOnline: false, lastSeen: null });
-  const [cameraDeviceStatus, setCameraDeviceStatus] = useState<DeviceStatus>({ isOnline: false, lastSeen: null });
-
 
   useEffect(() => {
     // Check for user session
@@ -62,44 +51,6 @@ export default function AuthenticatedLayout({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
-
-    // Fetch initial heartbeats
-    const fetchInitialHeartbeats = async () => {
-      const { data } = await supabase.from('heartbeat').select('*');
-      if (data) {
-        const main = data.find(d => d.device_id === 'aquaguard_main');
-        const camera = data.find(d => d.device_id === 'aquaguard_camera');
-        if (main) {
-          setMainDeviceStatus(prev => ({...prev, lastSeen: new Date(main.last_seen).getTime()}));
-        }
-        if (camera) {
-          setCameraDeviceStatus(prev => ({...prev, lastSeen: new Date(camera.last_seen).getTime()}));
-        }
-      }
-    };
-    fetchInitialHeartbeats();
-
-    // Subscribe to heartbeat changes
-    const channel = supabase
-      .channel('heartbeat-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeat' }, (payload) => {
-          const deviceId = (payload.new as any)?.device_id;
-          const lastSeen = (payload.new as any)?.last_seen;
-          if (deviceId && lastSeen) {
-            const lastSeenTime = new Date(lastSeen).getTime();
-            if (deviceId === 'aquaguard_main') {
-              setMainDeviceStatus(prev => ({ ...prev, lastSeen: lastSeenTime }));
-            } else if (deviceId === 'aquaguard_camera') {
-              setCameraDeviceStatus(prev => ({...prev, lastSeen: lastSeenTime}));
-            }
-          }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-
   }, [router]);
 
   useEffect(() => {
@@ -107,27 +58,6 @@ export default function AuthenticatedLayout({
     localStorage.setItem("theme", theme);
   }, [theme]);
   
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (mainDeviceStatus.lastSeen) {
-        const timeSince = Date.now() - mainDeviceStatus.lastSeen;
-        setMainDeviceStatus(prev => ({ ...prev, isOnline: timeSince < HEARTBEAT_OFFLINE_THRESHOLD }));
-      } else {
-        setMainDeviceStatus(prev => ({ ...prev, isOnline: false }));
-      }
-
-      if (cameraDeviceStatus.lastSeen) {
-        const timeSince = Date.now() - cameraDeviceStatus.lastSeen;
-        setCameraDeviceStatus(prev => ({ ...prev, isOnline: timeSince < HEARTBEAT_OFFLINE_THRESHOLD }));
-      } else {
-         setCameraDeviceStatus(prev => ({ ...prev, isOnline: false }));
-      }
-    }, 1000); // Check every second
-
-    return () => clearInterval(interval);
-  }, [mainDeviceStatus.lastSeen, cameraDeviceStatus.lastSeen]);
-
-
   const toggleTheme = () => {
     setTheme((currentTheme) => (currentTheme === "light" ? "dark" : "light"));
   };
@@ -182,20 +112,6 @@ export default function AuthenticatedLayout({
           </SheetContent>
         </Sheet>
         <div className="flex w-full items-center justify-end gap-2 md:ml-auto md:gap-2 lg:gap-4">
-            <div className="flex items-center gap-4 text-xs font-medium text-muted-foreground">
-                <div className="flex items-center gap-1.5">
-                    <Cpu className={`h-4 w-4 ${mainDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
-                    <span className={`${mainDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>
-                      System {mainDeviceStatus.isOnline ? 'on' : 'off'}
-                    </span>
-                </div>
-                 <div className="flex items-center gap-1.5">
-                    <Camera className={`h-4 w-4 ${cameraDeviceStatus.isOnline ? 'text-green-500' : 'text-red-500'}`} />
-                     <span className={`${cameraDeviceStatus.isOnline ? 'text-foreground' : 'text-red-500'}`}>
-                      Camera {cameraDeviceStatus.isOnline ? 'on' : 'off'}
-                    </span>
-                </div>
-            </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 <span className="sr-only">Toggle Theme</span>
