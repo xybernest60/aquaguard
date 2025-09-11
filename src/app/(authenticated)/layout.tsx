@@ -70,8 +70,8 @@ export default function AuthenticatedLayout({
         clearTimeout(heartbeatTimeout);
         heartbeatTimeout = setTimeout(() => {
           setSystemStatus("offline");
-          console.log("System appears offline. No heartbeat in 5s.");
-        }, 5000); // 5-second threshold
+          console.log("System appears offline. No heartbeat in 8s.");
+        }, 8000); // 8-second threshold
       } else {
         setSystemStatus("offline");
       }
