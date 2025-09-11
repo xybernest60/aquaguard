@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import { ref, onValue } from "firebase/database";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,10 +16,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle } from "lucide-react";
-import { auth } from "@/lib/firebase";
+import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle, Wifi, WifiOff } from "lucide-react";
+import { auth, db } from "@/lib/firebase";
 
 type Theme = "light" | "dark";
+type DeviceStatus = "online" | "offline";
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -36,10 +38,11 @@ export default function AuthenticatedLayout({
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [systemStatus, setSystemStatus] = useState<DeviceStatus>("offline");
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // --- Auth Listener ---
+    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserEmail(user.email);
         setLoading(false);
@@ -48,6 +51,7 @@ export default function AuthenticatedLayout({
       }
     });
 
+    // --- Theme ---
     const storedTheme = localStorage.getItem("theme") as Theme | null;
     if (storedTheme) {
       setTheme(storedTheme);
@@ -56,7 +60,28 @@ export default function AuthenticatedLayout({
       setTheme(prefersDark ? "dark" : "light");
     }
 
-    return () => unsubscribe();
+    // --- Heartbeat Listener ---
+    let heartbeatTimeout: NodeJS.Timeout;
+    const heartbeatRef = ref(db, 'heartbeat/aquaguard_main');
+    const unsubscribeHeartbeat = onValue(heartbeatRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setSystemStatus("online");
+        // Reset timeout whenever new data arrives
+        clearTimeout(heartbeatTimeout);
+        heartbeatTimeout = setTimeout(() => {
+          setSystemStatus("offline");
+          console.log("System appears offline. No heartbeat in 5s.");
+        }, 5000); // 5-second threshold
+      } else {
+        setSystemStatus("offline");
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeHeartbeat();
+      clearTimeout(heartbeatTimeout);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -76,7 +101,6 @@ export default function AuthenticatedLayout({
   if (loading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
-
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -122,7 +146,13 @@ export default function AuthenticatedLayout({
             </nav>
           </SheetContent>
         </Sheet>
-        <div className="flex w-full items-center justify-end gap-2 md:ml-auto md:gap-2 lg:gap-4">
+        <div className="flex w-full items-center justify-end gap-4 md:ml-auto">
+            <div className={`flex items-center gap-2 text-sm font-medium ${systemStatus === 'online' ? 'text-green-500' : 'text-destructive'}`}>
+                {systemStatus === 'online' ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
+                <span className="hidden sm:inline">
+                    System: {systemStatus === 'online' ? 'Online' : 'Offline'}
+                </span>
+            </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
                 <span className="sr-only">Toggle Theme</span>
