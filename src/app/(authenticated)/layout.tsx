@@ -20,7 +20,7 @@ import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle, Wifi, Wif
 import { auth, db } from "@/lib/firebase";
 
 type Theme = "light" | "dark";
-type DeviceStatus = "online" | "offline";
+type DeviceStatus = "connecting" | "online" | "offline";
 
 const menuItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -38,7 +38,7 @@ export default function AuthenticatedLayout({
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [systemStatus, setSystemStatus] = useState<DeviceStatus>("offline");
+  const [systemStatus, setSystemStatus] = useState<DeviceStatus>("connecting");
 
   useEffect(() => {
     // --- Auth Listener ---
@@ -63,10 +63,20 @@ export default function AuthenticatedLayout({
     // --- Heartbeat Listener ---
     let heartbeatTimeout: NodeJS.Timeout;
     const heartbeatRef = ref(db, 'heartbeat/aquaguard_main');
+    
+    // Set an initial timeout to declare the system offline if no data is received.
+    const initialTimeout = setTimeout(() => {
+        setSystemStatus("offline");
+        console.log("System appears offline. No initial heartbeat received in 8s.");
+    }, 8000);
+
     const unsubscribeHeartbeat = onValue(heartbeatRef, (snapshot) => {
+      // Once data is received for the first time, clear the initial timeout.
+      clearTimeout(initialTimeout);
+      
       if (snapshot.exists()) {
         setSystemStatus("online");
-        // Reset timeout whenever new data arrives
+        // Reset the subsequent timeout whenever new data arrives
         clearTimeout(heartbeatTimeout);
         heartbeatTimeout = setTimeout(() => {
           setSystemStatus("offline");
@@ -80,6 +90,7 @@ export default function AuthenticatedLayout({
     return () => {
       unsubscribeAuth();
       unsubscribeHeartbeat();
+      clearTimeout(initialTimeout);
       clearTimeout(heartbeatTimeout);
     };
   }, [router]);
@@ -101,6 +112,32 @@ export default function AuthenticatedLayout({
   if (loading) {
     return <div className="flex h-screen items-center justify-center">Loading...</div>;
   }
+
+  const getStatusContent = () => {
+    switch (systemStatus) {
+      case 'online':
+        return {
+          icon: <Wifi className="h-5 w-5" />,
+          text: 'Online',
+          color: 'text-green-500'
+        };
+      case 'offline':
+        return {
+          icon: <WifiOff className="h-5 w-5" />,
+          text: 'Offline',
+          color: 'text-destructive'
+        };
+      case 'connecting':
+      default:
+        return {
+          icon: <Wifi className="h-5 w-5 animate-pulse" />,
+          text: 'Connecting...',
+          color: 'text-muted-foreground'
+        };
+    }
+  };
+  
+  const statusContent = getStatusContent();
 
   return (
     <div className="flex min-h-screen w-full flex-col">
@@ -147,10 +184,10 @@ export default function AuthenticatedLayout({
           </SheetContent>
         </Sheet>
         <div className="flex w-full items-center justify-end gap-4 md:ml-auto">
-            <div className={`flex items-center gap-2 text-sm font-medium ${systemStatus === 'online' ? 'text-green-500' : 'text-destructive'}`}>
-                {systemStatus === 'online' ? <Wifi className="h-5 w-5" /> : <WifiOff className="h-5 w-5" />}
+            <div className={`flex items-center gap-2 text-sm font-medium ${statusContent.color}`}>
+                {statusContent.icon}
                 <span className="hidden sm:inline">
-                    System: {systemStatus === 'online' ? 'Online' : 'Offline'}
+                    System: {statusContent.text}
                 </span>
             </div>
             <Button onClick={toggleTheme} variant="ghost" size="icon">
