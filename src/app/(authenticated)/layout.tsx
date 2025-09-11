@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Fish, LayoutDashboard, Menu, Moon, Sun, FileText, UserCircle } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
 
 type Theme = "light" | "dark";
 
@@ -34,15 +35,18 @@ export default function AuthenticatedLayout({
   const [theme, setTheme] = useState<Theme>("light");
   const [open, setOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
 
   useEffect(() => {
-    // Check for user session
-    const user = localStorage.getItem("user");
-    if (!user) {
-      router.replace("/login");
-    } else {
-       setUserEmail(JSON.parse(user).email);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setUserEmail(user.email);
+        setLoading(false);
+      } else {
+        router.replace("/login");
+      }
+    });
 
     const storedTheme = localStorage.getItem("theme") as Theme | null;
     if (storedTheme) {
@@ -51,6 +55,8 @@ export default function AuthenticatedLayout({
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       setTheme(prefersDark ? "dark" : "light");
     }
+
+    return () => unsubscribe();
   }, [router]);
 
   useEffect(() => {
@@ -62,10 +68,15 @@ export default function AuthenticatedLayout({
     setTheme((currentTheme) => (currentTheme === "light" ? "dark" : "light"));
   };
   
-  const handleLogout = () => {
-    localStorage.removeItem("user");
+  const handleLogout = async () => {
+    await signOut(auth);
     router.replace("/login");
   };
+  
+  if (loading) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
+
 
   return (
     <div className="flex min-h-screen w-full flex-col">

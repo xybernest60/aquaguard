@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Fish } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { auth } from '@/lib/firebase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,7 +21,7 @@ export default function LoginPage() {
   
   useEffect(() => {
     // If user is already logged in, redirect to dashboard
-    if (localStorage.getItem('user')) {
+    if (auth.currentUser) {
       router.replace('/dashboard');
     }
   }, [router]);
@@ -31,34 +32,19 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('email, password_hash')
-        .eq('email', email)
-        .single();
-
-      if (error || !data) {
-        throw new Error('Invalid email or password.');
-      }
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
       
-      // IMPORTANT: This is an insecure password check for demonstration purposes.
-      // In a real application, use a secure authentication provider like Supabase Auth,
-      // which handles password hashing and verification securely.
-      if (password === data.password_hash) {
-        toast({
-          title: 'Login Successful',
-          description: 'Welcome to AquaGuard!',
-        });
-        localStorage.setItem('user', JSON.stringify({ email: data.email }));
-        router.replace('/dashboard');
-      } else {
-        throw new Error('Invalid email or password.');
-      }
+      toast({
+        title: 'Login Successful',
+        description: `Welcome, ${userCredential.user.email}!`,
+      });
+      router.replace('/dashboard');
+      
     } catch (err: any) {
       toast({
         variant: 'destructive',
         title: 'Login Failed',
-        description: err.message,
+        description: err.message || 'An unknown error occurred.',
       });
     } finally {
       setIsLoading(false);

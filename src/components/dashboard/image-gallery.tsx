@@ -3,15 +3,20 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import type { SecurityImage } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/firebase";
+import { ref, onValue, query, limitToLast } from "firebase/database";
 
-// A simple function to check if a URL is valid and from Supabase
+interface SecurityImage {
+  url: string;
+  timestamp: number;
+}
+
+// A simple function to check if a URL is a valid Supabase URL
 const isValidSupabaseUrl = (url: string | null): url is string => {
-    if (!url) return false;
+    if (!url || url === 'N/A') return false;
     try {
         const parsedUrl = new URL(url);
         return parsedUrl.protocol === 'https:' && parsedUrl.hostname.endsWith('supabase.co');
@@ -26,44 +31,28 @@ export function ImageGallery() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchImages = async () => {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('security')
-        .select('capture_url, timestamp')
-        .not('capture_url', 'is', null)
-        .order('timestamp', { ascending: false })
-        .limit(10);
+    const securityRef = ref(db, 'security');
+    const imagesQuery = query(securityRef, limitToLast(20)); // Get last 20 events
 
+    const unsubscribe = onValue(imagesQuery, (snapshot) => {
+      const data = snapshot.val();
       if (data) {
-        const formattedImages: SecurityImage[] = data
-            .filter(item => isValidSupabaseUrl(item.capture_url))
+        const formattedImages: SecurityImage[] = Object.keys(data)
+            .map(key => data[key])
+            .filter(item => isValidSupabaseUrl(item.image)) // ESP32 code uses 'image' field
             .map(item => ({
-                url: item.capture_url!,
+                url: item.image!,
                 timestamp: new Date(item.timestamp).getTime(),
-            }));
+            }))
+            .sort((a, b) => b.timestamp - a.timestamp); // Sort descending
+            
         setImages(formattedImages);
       }
       setIsLoading(false);
-    };
-
-    fetchImages();
-
-    const channel = supabase
-      .channel('security-image-changes')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
-        if(isValidSupabaseUrl(payload.new.capture_url)) {
-            const newImage: SecurityImage = {
-                url: payload.new.capture_url!,
-                timestamp: new Date(payload.new.timestamp).getTime()
-            };
-            setImages(currentImages => [newImage, ...currentImages]);
-        }
-      })
-      .subscribe();
+    });
 
     return () => {
-        supabase.removeChannel(channel);
+        unsubscribe();
     }
 
   }, []);

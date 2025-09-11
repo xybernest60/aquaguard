@@ -6,7 +6,8 @@ import { Line, LineChart, CartesianGrid, XAxis, YAxis, Tooltip } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { supabase } from "@/lib/supabase";
+import { db } from "@/lib/firebase";
+import { ref, onValue, query, limitToLast } from "firebase/database";
 
 const chartConfig = {
   temperature: { label: "Temperature (°C)", color: "hsl(var(--chart-1))" },
@@ -18,41 +19,28 @@ export function HistoricalChart() {
     const [historicalData, setHistoricalData] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchHistoricalData = async () => {
-            const { data, error } = await supabase
-                .from('environment')
-                .select('timestamp, temperature, tds, light')
-                .order('timestamp', { ascending: false })
-                .limit(50); // Fetch last 50 data points
+        const historyRef = ref(db, 'system_history');
+        // Firebase queries are powerful. We can ask for the last 50 records directly.
+        const historyQuery = query(historyRef, limitToLast(50));
 
+        const unsubscribe = onValue(historyQuery, (snapshot) => {
+            const data = snapshot.val();
             if (data) {
-                const formattedData = data.map(item => ({
-                    time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    temperature: item.temperature,
-                    tds: item.tds,
-                    light: item.light,
-                })).reverse(); // reverse to show oldest first
+                const formattedData = Object.keys(data).map(key => {
+                    const item = data[key];
+                    return {
+                        time: new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        temperature: item.temperature,
+                        tds: item.tds,
+                        light: item.light,
+                    }
+                });
                 setHistoricalData(formattedData);
             }
-        };
-
-        fetchHistoricalData();
-
-        const channel = supabase
-            .channel('historical-environment-changes')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
-                const newItem = {
-                    time: new Date(payload.new.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    temperature: payload.new.temperature,
-                    tds: payload.new.tds,
-                    light: payload.new.light,
-                };
-                setHistoricalData(currentData => [...currentData.slice(-49), newItem]);
-            })
-            .subscribe();
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            unsubscribe(); // Detach the listener when the component unmounts
         }
     }, []);
 

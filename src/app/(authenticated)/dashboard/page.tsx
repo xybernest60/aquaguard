@@ -2,13 +2,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { ref, onValue } from "firebase/database";
+import { db } from "@/lib/firebase";
 import { Thermometer, Droplets, Sun, Moon, Move, ShieldCheck } from "lucide-react";
 import { DataCard } from "@/components/dashboard/data-card";
 import { AlertPanel } from "@/components/dashboard/alert-panel";
 import { HistoricalChart } from "@/components/dashboard/historical-chart";
 import { ImageGallery } from "@/components/dashboard/image-gallery";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabase } from "@/lib/supabase";
 
 export interface SensorData {
   temperature: number | null;
@@ -19,6 +20,7 @@ export interface SensorData {
   timestamp: number | null;
 }
 
+const DEVICE_ID = "aquaguard_main"; // As defined in ESP32 code
 
 export default function DashboardPage() {
   const [data, setData] = useState<SensorData | null>(null);
@@ -39,81 +41,51 @@ export default function DashboardPage() {
     });
     observer.observe(document.documentElement, { attributes: true });
 
-    // Fetch initial data - always get the latest record
-    const fetchInitialData = async () => {
-      setLoading(true);
-      const isDark = document.documentElement.classList.contains('dark');
-
-      const { data: environmentData } = await supabase
-        .from('environment')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
-
-      const { data: securityData } = await supabase
-        .from('security')
-        .select('motion_detected, day_night')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
-      
-      const initialIsNight = securityData ? securityData.day_night === 'night' : isDark;
-
-      setData({
-        temperature: environmentData?.temperature ?? null,
-        tds: environmentData?.tds ?? null,
-        light: environmentData?.light ?? null,
-        motion: securityData?.motion_detected ?? false,
-        isNight: initialIsNight,
-        timestamp: environmentData ? new Date(environmentData.timestamp).getTime() : null,
-      });
-
-      if (initialIsNight !== isDark) {
-          document.documentElement.classList.toggle("dark", initialIsNight);
+    // Listener for current environment data
+    const systemCurrentRef = ref(db, `system_current/${DEVICE_ID}`);
+    const environmentListener = onValue(systemCurrentRef, (snapshot) => {
+      const dbData = snapshot.val();
+      if (dbData) {
+        setData(currentData => ({
+          ...(currentData ?? { motion: false, isNight: false }),
+          temperature: dbData.temperature ?? null,
+          tds: dbData.tds ?? null,
+          light: dbData.light ?? null,
+          timestamp: dbData.timestamp ? new Date(dbData.timestamp).getTime() : Date.now(),
+        }));
       }
-      
       setLoading(false);
-    };
+    });
 
-    fetchInitialData();
-
-    // Subscribe to real-time insertions for new data points
-    const environmentChannel = supabase
-      .channel('environment-inserts')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'environment' }, (payload) => {
-          const newReading = payload.new as any;
-          setData(currentData => ({
-              ...(currentData!),
-              temperature: newReading.temperature,
-              tds: newReading.tds,
-              light: newReading.light,
-              timestamp: new Date(newReading.timestamp).getTime(),
-          }));
-      })
-      .subscribe();
-      
-    const securityChannel = supabase
-      .channel('security-inserts')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'security' }, (payload) => {
-          const newEvent = payload.new as any;
-          const isNightFromData = newEvent.day_night === 'night';
-          setData(currentData => ({
-              ...(currentData!),
-              motion: newEvent.motion_detected,
-              isNight: isNightFromData,
-          }));
-          
-          if (isNightFromData !== document.documentElement.classList.contains('dark')) {
-            document.documentElement.classList.toggle("dark", isNightFromData);
-          }
-      })
-      .subscribe();
+    // Listener for security data (motion & day/night)
+    // ESP32 code shows security events are PUSHED (new records) not PUT (overwrite)
+    // so we listen to the parent path and get the latest
+     const securityRef = ref(db, 'security');
+     const securityListener = onValue(securityRef, (snapshot) => {
+         const securityEvents = snapshot.val();
+         if (securityEvents) {
+            const latestEventKey = Object.keys(securityEvents).sort().pop();
+            if(latestEventKey) {
+                const latestEvent = securityEvents[latestEventKey];
+                const isNightFromData = latestEvent.details === 'night';
+                
+                setData(currentData => ({
+                    ...(currentData ?? { temperature: null, tds: null, light: null, timestamp: null }),
+                    motion: latestEvent.event === 'Motion Detected',
+                    isNight: isNightFromData,
+                }));
+                
+                if (isNightFromData !== document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.toggle("dark", isNightFromData);
+                }
+            }
+         }
+     });
 
 
     return () => {
-      supabase.removeChannel(environmentChannel);
-      supabase.removeChannel(securityChannel);
+      environmentListener(); // Detach listener
+      securityListener();
       observer.disconnect();
     };
   }, []);
