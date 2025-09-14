@@ -3,7 +3,6 @@
 
 import { useEffect, useState } from "react";
 import type { SensorData } from "@/app/(authenticated)/dashboard/page";
-import { analyzeAlertSeverity, type AlertSeverityOutput } from "@/ai/flows/alert-severity-analyzer";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Info, ShieldAlert } from "lucide-react";
@@ -11,6 +10,13 @@ import { AlertTriangle, Info, ShieldAlert } from "lucide-react";
 interface AlertPanelProps {
   data: SensorData;
 }
+
+type AlertState = {
+  severity: 'low' | 'medium' | 'high';
+  title: string;
+  reason: string;
+} | null;
+
 
 const severityConfig = {
   low: {
@@ -31,7 +37,7 @@ const severityConfig = {
 };
 
 export function AlertPanel({ data }: AlertPanelProps) {
-  const [alert, setAlert] = useState<AlertSeverityOutput | null>(null);
+  const [alert, setAlert] = useState<AlertState>(null);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
@@ -40,37 +46,26 @@ export function AlertPanel({ data }: AlertPanelProps) {
       return;
     }
     
-    const checkAlerts = async () => {
-      // Define alert conditions
-      const tempOutOfRange = data.temperature !== null && (data.temperature < 20 || data.temperature > 30);
-      const tdsTooHigh = data.tds !== null && data.tds > 600;
-      const intruder = data.motion && data.isNight;
+    // Simplified rule-based alerts based on ESP32 logic
+    const intruder = data.motion && data.isNight;
+    const tdsTooHigh = data.tds !== null && data.tds > 600;
 
-      if (tempOutOfRange || tdsTooHigh || intruder) {
-        setIsLoading(true);
-        try {
-          const result = await analyzeAlertSeverity({
-            temperature: data.temperature!,
-            tds: data.tds!,
-            motionDetected: data.motion,
-            isNight: data.isNight,
-          });
-          setAlert(result);
-        } catch (error) {
-          console.error("Error analyzing alert severity:", error);
-          setAlert({
+    if (intruder) {
+        setAlert({
+            severity: "high",
+            title: "High Severity Alert",
+            reason: "Motion detected at night!",
+        });
+    } else if (tdsTooHigh) {
+        setAlert({
             severity: "medium",
-            reason: "Could not analyze alert, operating in failsafe mode."
-          });
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        setAlert(null);
-      }
-    };
+            title: "Medium Severity Alert",
+            reason: "Warning: High TDS Level!",
+        });
+    } else {
+        setAlert(null); // All normal
+    }
 
-    checkAlerts();
   }, [data]);
 
   const config = alert ? severityConfig[alert.severity] : null;
@@ -89,7 +84,7 @@ export function AlertPanel({ data }: AlertPanelProps) {
         ) : alert && config ? (
           <Alert variant={config.variant} className={alert.severity === 'medium' ? 'bg-accent/10 border-accent/50' : ''}>
             {config.icon}
-            <AlertTitle className={alert.severity === 'medium' ? 'text-accent' : ''}>{config.title}</AlertTitle>
+            <AlertTitle className={alert.severity === 'medium' ? 'text-accent' : ''}>{alert.title}</AlertTitle>
             <AlertDescription>{alert.reason}</AlertDescription>
           </Alert>
         ) : (
