@@ -66,7 +66,10 @@ export default function AuthenticatedLayout({
     
     // Set an initial timeout to declare the system offline if no data is received.
     const initialTimeout = setTimeout(() => {
-        setSystemStatus("offline");
+        // Only set to offline if it's still in the 'connecting' state
+        setSystemStatus((currentStatus) => 
+            currentStatus === "connecting" ? "offline" : currentStatus
+        );
         console.log("System appears offline. No initial heartbeat received in 10s.");
     }, 10000);
 
@@ -83,6 +86,7 @@ export default function AuthenticatedLayout({
           console.log("System appears offline. No heartbeat in 10s.");
         }, 10000); // 10-second threshold
       } else {
+        // if no data exists at all, it's offline (after initial check)
         setSystemStatus("offline");
       }
     });
