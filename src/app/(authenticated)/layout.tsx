@@ -67,8 +67,8 @@ export default function AuthenticatedLayout({
     // Set an initial timeout to declare the system offline if no data is received.
     const initialTimeout = setTimeout(() => {
         setSystemStatus("offline");
-        console.log("System appears offline. No initial heartbeat received in 8s.");
-    }, 8000);
+        console.log("System appears offline. No initial heartbeat received in 10s.");
+    }, 10000);
 
     const unsubscribeHeartbeat = onValue(heartbeatRef, (snapshot) => {
       // Once data is received for the first time, clear the initial timeout.
@@ -80,8 +80,8 @@ export default function AuthenticatedLayout({
         clearTimeout(heartbeatTimeout);
         heartbeatTimeout = setTimeout(() => {
           setSystemStatus("offline");
-          console.log("System appears offline. No heartbeat in 8s.");
-        }, 8000); // 8-second threshold
+          console.log("System appears offline. No heartbeat in 10s.");
+        }, 10000); // 10-second threshold
       } else {
         setSystemStatus("offline");
       }
